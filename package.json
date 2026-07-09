@@ -1,0 +1,16 @@
+{
+  "name": "takoyaki",
+  "version": "1.0.0",
+  "description": "Discord GitHub Activity Pinger Bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.13.0",
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1"
+  },
+  "type": "module"
+}
