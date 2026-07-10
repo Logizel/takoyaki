@@ -11,6 +11,7 @@ import { oauthCallbackHandler } from "./oauth-handler.js";
 import { webhookHandler } from "./webhook-handler.js";
 import { linkCommand } from "./commands/link.js";
 import { unlinkCommand } from "./commands/unlink.js";
+import { installCommand } from "./commands/install.js";
 import { setchannelCommand } from "./commands/setchannel.js";
 
 const app = express();
@@ -58,6 +59,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await linkCommand(interaction);
     } else if (subcommand === "unlink") {
       await unlinkCommand(interaction);
+    } else if (subcommand === "install") {
+      await installCommand(interaction);
     }
   } else if (commandName === "setchannel") {
     await setchannelCommand(interaction);

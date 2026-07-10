@@ -86,7 +86,8 @@ export async function webhookHandler(req, res) {
   }
 
   const event = req.headers['x-github-event'];
-  if (event === 'star') {
+  if (event === 'star' || event === 'installation' || event === 'installation_repositories') {
+    console.log(`Received ${event} event`);
     return res.status(200).send('OK');
   }
 
