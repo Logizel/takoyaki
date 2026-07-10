@@ -15,17 +15,8 @@ export async function unlinkCommand(interaction) {
   const embed = new EmbedBuilder()
     .setColor(0x28a745)
     .setTitle('✅ GitHub Account Unlinked')
-    .setDescription(`Your GitHub account (**@${user.githubLogin}**) has been unlinked from Takoyaki.`)
+    .setDescription(`Your GitHub account (**@${user}**) has been unlinked from Takoyaki.`)
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
-
-export const unlinkCommandData = new SlashCommandBuilder()
-  .setName('github')
-  .setDescription('Link or unlink your GitHub account')
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('unlink')
-      .setDescription('Unlink your GitHub account')
-  );

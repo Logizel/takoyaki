@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { readData, getChannel } from './database.js';
+import { readData } from './database.js';
 
 function verifySignature(payload, signature, secret) {
   const expected = `sha256=${crypto.createHmac('sha256', secret).update(payload).digest('hex')}`;
@@ -107,10 +107,9 @@ export async function webhookHandler(req, res) {
     return res.status(200).send('OK');
   }
 
-  let channelId = getChannel(user.discordId);
-  if (!channelId) {
-    channelId = process.env.DISCORD_CHANNEL_ID;
-  }
+  const channels = readData().channels;
+  const channelIds = Object.values(channels);
+  let channelId = channelIds.length > 0 ? channelIds[0] : process.env.DISCORD_CHANNEL_ID;
   if (!channelId) {
     return res.status(200).send('OK');
   }

@@ -15,7 +15,7 @@ function ensureDataDir() {
   }
 }
 
-function readData() {
+export function readData() {
   ensureDataDir();
   if (!fs.existsSync(DATA_PATH)) {
     return { users: {}, channels: {}, oauth_states: {} };

@@ -1,4 +1,4 @@
-import { getOAuthState, deleteOAuthState, setUser, getUser } from './database.js';
+import { getOAuthState, deleteOAuthState, setUser } from './database.js';
 
 export async function oauthCallbackHandler(req, res) {
   const { code, state } = req.query;
@@ -51,12 +51,7 @@ export async function oauthCallbackHandler(req, res) {
     const githubUsername = userData.login;
     const discordId = stateData.discord_id;
 
-    const existing = getUser(discordId);
-    if (existing) {
-      setUser(discordId, githubUsername);
-    } else {
-      setUser(discordId, githubUsername);
-    }
+    setUser(discordId, githubUsername);
 
     deleteOAuthState(state);
 
