@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 export async function installCommand(interaction) {
   const appName = process.env.GITHUB_APP_NAME;
@@ -15,10 +15,8 @@ export async function installCommand(interaction) {
     .setColor(0x24292e)
     .setTitle('📦 Install Takoyaki GitHub App')
     .setDescription(
-      `Click the link below to install the **Takoyaki** GitHub App on your account.\n\n` +
-      `Once installed, GitHub will automatically send all events from **all your repos** to Takoyaki. ` +
-      `No need to configure webhooks per-repo.\n\n` +
-      `[Install Takoyaki GitHub App](${installUrl})`
+      'Click the button below to install Takoyaki on your GitHub account.\n\n' +
+      'Once installed, GitHub will automatically send events from **all your repos** — no per-repo webhooks needed.'
     )
     .addFields(
       { name: '📋 What you get', value: 'Pings for pushes, PRs, issues, and repo creation across all your repos.' },
@@ -27,8 +25,16 @@ export async function installCommand(interaction) {
     .setTimestamp()
     .setFooter({ text: 'Takoyaki Bot' });
 
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel('Install Takoyaki GitHub App')
+      .setStyle(ButtonStyle.Link)
+      .setURL(installUrl)
+  );
+
   await interaction.reply({
     embeds: [embed],
+    components: [row],
     ephemeral: true,
   });
 }
