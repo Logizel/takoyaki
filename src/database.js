@@ -95,10 +95,10 @@ export function setChannelId(channelId) {
   writeData(data);
 }
 
-export function createOAuthState(discordId) {
+export function createOAuthState(discordId, interactionToken = null) {
   const data = readData();
   const state = crypto.randomBytes(16).toString('hex');
-  data.oauth_states[state] = { discord_id: discordId, created_at: Date.now() };
+  data.oauth_states[state] = { discord_id: discordId, interaction_token: interactionToken, created_at: Date.now() };
   writeData(data);
   return state;
 }

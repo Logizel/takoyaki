@@ -3,7 +3,7 @@ import { createOAuthState, getUser } from '../database.js';
 
 export async function linkCommand(interaction) {
   const existingUser = getUser(interaction.user.id);
-  const state = createOAuthState(interaction.user.id);
+  const state = createOAuthState(interaction.user.id, interaction.token);
   const oauthUrl = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&state=${state}&scope=read:user`;
 
   let title = '🔗 Link GitHub Account';
