@@ -5,9 +5,8 @@ const commands = [
   new SlashCommandBuilder()
     .setName('github')
     .setDescription('Manage your GitHub integration with Takoyaki.')
-    .addSubcommand(sub => sub.setName('link').setDescription('Link your Discord to GitHub via OAuth.'))
-    .addSubcommand(sub => sub.setName('unlink').setDescription('Remove your GitHub link.'))
-    .addSubcommand(sub => sub.setName('install').setDescription('Get the GitHub App installation URL to receive events from all your repos.')),
+    .addSubcommand(sub => sub.setName('link').setDescription('Install the GitHub App and link your account.'))
+    .addSubcommand(sub => sub.setName('unlink').setDescription('Remove your GitHub link.')),
   new SlashCommandBuilder()
     .setName('setchannel')
     .setDescription('Set this channel for Takoyaki notifications.')
