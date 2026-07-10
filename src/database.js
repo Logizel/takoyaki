@@ -6,12 +6,23 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DATA_PATH = process.env.DATA_PATH || resolve(__dirname, '../data/data.json');
+const LOCAL_PATH = resolve(__dirname, '../data/data.json');
+let DATA_PATH = process.env.DATA_PATH || LOCAL_PATH;
 
 function ensureDataDir() {
   const dir = resolve(DATA_PATH, '..');
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (err) {
+      if (err.code === 'EACCES' && DATA_PATH !== LOCAL_PATH) {
+        console.warn(`Cannot write to ${DATA_PATH}, falling back to ${LOCAL_PATH}`);
+        DATA_PATH = LOCAL_PATH;
+        ensureDataDir();
+      } else {
+        throw err;
+      }
+    }
   }
 }
 
