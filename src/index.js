@@ -31,6 +31,7 @@ app.post("/webhook", webhookHandler);
 
 // JSON parser for other routes
 app.use(express.json());
+app.get("/health", (_, res) => res.send("OK"));
 app.get("/auth/callback", oauthCallbackHandler);
 
 const PORT = process.env.PORT || 3000;
