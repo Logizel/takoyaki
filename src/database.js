@@ -7,22 +7,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const LOCAL_PATH = resolve(__dirname, '../data/data.json');
+const TMP_PATH = '/tmp/data.json';
 let DATA_PATH = process.env.DATA_PATH || LOCAL_PATH;
+
+function tryMkdir(dir) {
+  if (fs.existsSync(dir)) return true;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function ensureDataDir() {
   const dir = resolve(DATA_PATH, '..');
-  if (!fs.existsSync(dir)) {
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-    } catch (err) {
-      if (err.code === 'EACCES' && DATA_PATH !== LOCAL_PATH) {
-        console.warn(`Cannot write to ${DATA_PATH}, falling back to ${LOCAL_PATH}`);
-        DATA_PATH = LOCAL_PATH;
-        ensureDataDir();
-      } else {
-        throw err;
-      }
-    }
+  if (tryMkdir(dir)) return;
+
+  if (DATA_PATH !== LOCAL_PATH) {
+    console.warn(`Cannot write to ${DATA_PATH}, falling back to ${LOCAL_PATH}`);
+    DATA_PATH = LOCAL_PATH;
+    if (tryMkdir(resolve(LOCAL_PATH, '..'))) return;
+  }
+
+  console.warn(`Cannot write to ${DATA_PATH}, falling back to ${TMP_PATH}`);
+  DATA_PATH = TMP_PATH;
+  if (!tryMkdir(resolve(TMP_PATH, '..'))) {
+    throw new Error('No writable data path found — tried DATA_PATH, LOCAL_PATH, and /tmp/');
   }
 }
 

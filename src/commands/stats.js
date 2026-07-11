@@ -11,11 +11,14 @@ async function fetchCommitCount(login, token, since, until) {
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.v3+json',
+      Accept: 'application/vnd.github.cloak-preview',
     },
   });
-  if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
   const body = await res.json();
+  if (!res.ok) {
+    console.error('GitHub API error:', res.status, JSON.stringify(body));
+    throw new Error(`GitHub API: ${res.status}`);
+  }
   return body.total_count || 0;
 }
 
@@ -37,7 +40,7 @@ function generateStreakGrid(discordId) {
   const oneDay = 24 * 60 * 60 * 1000;
 
   const grid = [];
-  for (let i = 0; i < 371; i++) {
+  for (let i = 0; i < 182; i++) {
     const d = new Date(today.getTime() - i * oneDay);
     const key = d.toISOString().slice(0, 10);
     grid.push({ date: d, count: commits[key] || 0 });
@@ -46,12 +49,10 @@ function generateStreakGrid(discordId) {
 
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const lines = [];
-  const header = '     ' + Array.from({ length: 53 }, (_, w) => `W${(w + 1).toString().padStart(2, '0')}`).join('');
-  lines.push(header);
 
   for (let row = 0; row < 7; row++) {
     let line = dayNames[row] + ' ';
-    for (let col = 0; col < 53; col++) {
+    for (let col = 0; col < 26; col++) {
       const idx = col * 7 + row;
       if (idx >= grid.length) {
         line += ' ';
@@ -108,8 +109,11 @@ async function statsMe(interaction) {
     const until = todayStr();
     const yearAgo = yearAgoStr();
 
+    const sinceToday = today + 'T00:00:00Z';
+    const untilToday = today + 'T23:59:59Z';
+
     const [todayCount, yearCount, localToday] = await Promise.all([
-      fetchCommitCount(user.githubLogin, user.accessToken, today, until),
+      fetchCommitCount(user.githubLogin, user.accessToken, sinceToday, untilToday),
       fetchCommitCount(user.githubLogin, user.accessToken, yearAgo, until),
       Promise.resolve(getTodayCommits(interaction.user.id)),
     ]);
