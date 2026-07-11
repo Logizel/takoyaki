@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { readData } from "./database.js";
+import { readData, addCommitCount } from "./database.js";
 
 function verifySignature(payload, signature, secret) {
   const expected = `sha256=${crypto.createHmac("sha256", secret).update(payload).digest("hex")}`;
@@ -70,7 +70,15 @@ function formatMessage(discordId, event, payload) {
 
 function getUserByGithubLogin(githubLogin) {
   const data = readData();
-  for (const [discordId, login] of Object.entries(data.users)) {
+  for (const [discordId, userObj] of Object.entries(data.users)) {
+    let login;
+    if (typeof userObj === 'object' && userObj !== null) {
+      login = userObj.githubLogin;
+    } else if (typeof userObj === 'string') {
+      login = userObj;
+    } else {
+      continue;
+    }
     if (login.toLowerCase() === githubLogin.toLowerCase()) {
       return { discordId, githubLogin: login };
     }
@@ -139,6 +147,12 @@ export async function webhookHandler(req, res) {
     }
   } catch (error) {
     console.error("Failed to send webhook message:", error);
+  }
+
+  // Track today's commits from push events
+  if (event === "push") {
+    const commits = parsed.commits || [];
+    addCommitCount(user.discordId, commits.length);
   }
 
   res.status(200).send("OK");

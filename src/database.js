@@ -29,10 +29,11 @@ function ensureDataDir() {
 export function readData() {
   ensureDataDir();
   if (!fs.existsSync(DATA_PATH)) {
-    return { users: {}, channels: {}, oauth_states: {} };
+    return { users: {}, channels: {}, oauth_states: {}, commits: {} };
   }
   try {
     const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+
     // Clean expired oauth_states
     const now = Date.now();
     const validStates = {};
@@ -42,9 +43,20 @@ export function readData() {
       }
     }
     data.oauth_states = validStates;
+
+    // Migrate old string-format users to object format
+    for (const [id, val] of Object.entries(data.users || {})) {
+      if (typeof val === 'string') {
+        data.users[id] = { githubLogin: val, accessToken: null };
+      }
+    }
+
+    // Ensure commits key exists
+    if (!data.commits) data.commits = {};
+
     return data;
   } catch {
-    return { users: {}, channels: {}, oauth_states: {} };
+    return { users: {}, channels: {}, oauth_states: {}, commits: {} };
   }
 }
 
@@ -60,9 +72,9 @@ export function getUser(discordId) {
   return data.users[discordId] || null;
 }
 
-export function setUser(discordId, githubUsername) {
+export function setUser(discordId, userObj) {
   const data = readData();
-  data.users[discordId] = githubUsername;
+  data.users[discordId] = userObj;
   writeData(data);
 }
 
@@ -119,4 +131,66 @@ export function deleteOAuthState(state) {
   const data = readData();
   delete data.oauth_states[state];
   writeData(data);
+}
+
+// --- Commit tracking ---
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function addCommitCount(discordId, count) {
+  const data = readData();
+  if (!data.commits[discordId]) data.commits[discordId] = {};
+  const key = todayKey();
+  data.commits[discordId][key] = (data.commits[discordId][key] || 0) + count;
+  writeData(data);
+}
+
+export function getTodayCommits(discordId) {
+  const data = readData();
+  return data.commits[discordId]?.[todayKey()] || 0;
+}
+
+export function getAllTodayCommits() {
+  const data = readData();
+  const key = todayKey();
+  const result = [];
+  for (const [discordId, days] of Object.entries(data.commits || {})) {
+    const count = days[key] || 0;
+    if (count > 0) result.push({ discordId, count });
+  }
+  return result;
+}
+
+export function getCommitsForDateRange(discordId, startDate, endDate) {
+  const data = readData();
+  const days = data.commits[discordId] || {};
+  let total = 0;
+  const current = new Date(startDate);
+  const end = new Date(endDate);
+  while (current <= end) {
+    const key = current.toISOString().slice(0, 10);
+    total += days[key] || 0;
+    current.setDate(current.getDate() + 1);
+  }
+  return total;
+}
+
+export function getYearCommits(discordId) {
+  const now = new Date();
+  const yearAgo = new Date(now);
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  return getCommitsForDateRange(discordId, yearAgo, now);
+}
+
+export function getAllLogins() {
+  const data = readData();
+  const result = [];
+  for (const [discordId, userObj] of Object.entries(data.users)) {
+    if (userObj && typeof userObj === 'object') {
+      result.push({ discordId, githubLogin: userObj.githubLogin, accessToken: userObj.accessToken });
+    }
+  }
+  return result;
 }

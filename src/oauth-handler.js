@@ -81,7 +81,7 @@ export async function oauthCallbackHandler(req, res) {
     const userData = await userResponse.json();
     if (!userData.login) throw new Error('Failed to fetch GitHub user');
 
-    setUser(stateData.discord_id, userData.login);
+    setUser(stateData.discord_id, { githubLogin: userData.login, accessToken: tokenData.access_token });
     deleteOAuthState(state);
 
     await sendEphemeralFollowup(token, `✅ **Takoyaki** successfully linked your Discord to GitHub account: **@${userData.login}**`);

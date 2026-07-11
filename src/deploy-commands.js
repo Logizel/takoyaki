@@ -11,6 +11,16 @@ const commands = [
     .setName('setchannel')
     .setDescription('Set this channel for Takoyaki notifications.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+  new SlashCommandBuilder()
+    .setName('stats')
+    .setDescription('View GitHub commit statistics.')
+    .addSubcommand(sub => sub.setName('me').setDescription('Your commit count today and in the past 365 days.'))
+    .addSubcommand(sub => sub.setName('streak').setDescription('Your commit streak chart for the past year.'))
+    .addSubcommand(sub => sub.setName('compare')
+      .setDescription('Compare your commits with another user.')
+      .addUserOption(opt => opt.setName('user').setDescription('The user to compare with.').setRequired(true)))
+    .addSubcommand(sub => sub.setName('top').setDescription('Leaderboard of commits in the past 365 days.'))
+    .addSubcommand(sub => sub.setName('top-day').setDescription('Who has the most commits today.')),
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);

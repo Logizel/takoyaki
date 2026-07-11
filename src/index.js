@@ -11,6 +11,7 @@ import { oauthCallbackHandler } from "./oauth-handler.js";
 import { webhookHandler } from "./webhook-handler.js";
 import { linkCommand } from "./commands/link.js";
 import { unlinkCommand } from "./commands/unlink.js";
+import { statsCommand } from "./commands/stats.js";
 import { setchannelCommand } from "./commands/setchannel.js";
 
 const app = express();
@@ -62,6 +63,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   } else if (commandName === "setchannel") {
     await setchannelCommand(interaction);
+  } else if (commandName === "stats") {
+    await statsCommand(interaction);
   }
 });
 
