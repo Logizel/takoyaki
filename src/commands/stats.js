@@ -410,7 +410,7 @@ async function statsTopDay(interaction) {
     .setDescription(description)
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], ephemeral: false });
 }
 
 async function statsStreak(interaction) {
