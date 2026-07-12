@@ -5,21 +5,34 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
+const GQL_QUERY = `
+  query($login: String!, $from: DateTime!, $to: DateTime!) {
+    user(login: $login) {
+      contributionsCollection(from: $from, to: $to) {
+        totalCommitContributions
+      }
+    }
+  }
+`;
+
 async function fetchCommitCount(login, token, since, until) {
-  const q = `repo:* author:${login} committer-date:${since}..${until}`;
-  const url = `https://api.github.com/search/commits?q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, {
+  const res = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.cloak-preview',
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({
+      query: GQL_QUERY,
+      variables: { login, from: since, to: until },
+    }),
   });
   const body = await res.json();
-  if (!res.ok) {
-    console.error('GitHub API error:', res.status, JSON.stringify(body));
+  if (!res.ok || body.errors) {
+    console.error('GitHub API error:', res.status, JSON.stringify(body.errors || body));
     throw new Error(`GitHub API: ${res.status}`);
   }
-  return body.total_count || 0;
+  return body.data.user.contributionsCollection.totalCommitContributions || 0;
 }
 
 function todayStr() {
@@ -31,6 +44,9 @@ function yearAgoStr() {
   d.setFullYear(d.getFullYear() - 1);
   return d.toISOString().slice(0, 10);
 }
+
+function dateStart(s) { return s + 'T00:00:00Z'; }
+function dateEnd(s) { return s + 'T23:59:59Z'; }
 
 function generateStreakGrid(discordId) {
   const data = readData();
@@ -109,7 +125,7 @@ async function statsMe(interaction) {
     const until = todayStr();
     const yearAgo = yearAgoStr();
 
-    const yearCount = await fetchCommitCount(user.githubLogin, user.accessToken, yearAgo, today + 'T23:59:59Z');
+    const yearCount = await fetchCommitCount(user.githubLogin, user.accessToken, dateStart(yearAgo), dateEnd(today));
     const localToday = getTodayCommits(interaction.user.id);
 
     const embed = new EmbedBuilder()
@@ -152,8 +168,8 @@ async function statsCompare(interaction) {
     const yearAgo = yearAgoStr();
 
     const [myYear, theirYear] = await Promise.all([
-      fetchCommitCount(me.githubLogin, me.accessToken, yearAgo, today),
-      fetchCommitCount(them.githubLogin, them.accessToken, yearAgo, today),
+      fetchCommitCount(me.githubLogin, me.accessToken, dateStart(yearAgo), dateEnd(today)),
+      fetchCommitCount(them.githubLogin, them.accessToken, dateStart(yearAgo), dateEnd(today)),
     ]);
 
     const diff = myYear - theirYear;
@@ -193,7 +209,7 @@ async function statsTop(interaction) {
     const results = [];
     for (const u of allUsers) {
       try {
-        const count = await fetchCommitCount(u.githubLogin, u.accessToken, yearAgo, today);
+        const count = await fetchCommitCount(u.githubLogin, u.accessToken, dateStart(yearAgo), dateEnd(today));
         results.push({ discordId: u.discordId, githubLogin: u.githubLogin, count });
       } catch {
         // skip failed fetches
