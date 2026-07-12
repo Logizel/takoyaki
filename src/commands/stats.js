@@ -426,7 +426,7 @@ async function statsStreak(interaction) {
   const embed = new EmbedBuilder()
     .setColor(0x24292e)
     .setTitle(`📊 Contribution Streak — @${user.githubLogin}`)
-    .setDescription(`Past 365 days\n\n${grid}`)
+    .setDescription(`Past 182 days\n\n${grid}`)
     .setFooter({ text: "█ ▓ ░ = high → low | ⬛ = no commits" })
     .setTimestamp();
 
