@@ -331,7 +331,7 @@ async function statsTop(interaction) {
     });
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ ephemeral: false });
 
   try {
     const today = todayStr();
