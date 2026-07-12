@@ -389,7 +389,7 @@ async function statsTopDay(interaction) {
     });
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ ephemeral: false });
 
   try {
     const today = todayStr();
@@ -416,7 +416,9 @@ async function statsTopDay(interaction) {
     }
 
     if (results.length === 0) {
-      return interaction.editReply({ content: "📭 No contributions from anyone today yet." });
+      return interaction.editReply({
+        content: "📭 No contributions from anyone today yet.",
+      });
     }
 
     results.sort((a, b) => b.count - a.count);
@@ -442,7 +444,9 @@ async function statsTopDay(interaction) {
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error("Stats top-day error:", err);
-    await interaction.editReply({ content: "❌ Failed to fetch today's leaderboard. Try again later." });
+    await interaction.editReply({
+      content: "❌ Failed to fetch today's leaderboard. Try again later.",
+    });
   }
 }
 
