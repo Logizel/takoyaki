@@ -99,10 +99,15 @@ async function generateStreakGrid(login, token) {
   });
   const body = await res.json();
   if (!res.ok || body.errors) {
-    console.error("GitHub API error:", res.status, JSON.stringify(body.errors || body));
+    console.error(
+      "GitHub API error:",
+      res.status,
+      JSON.stringify(body.errors || body),
+    );
     throw new Error(`GitHub API: ${res.status}`);
   }
-  const weeks = body.data.user.contributionsCollection.contributionCalendar.weeks;
+  const weeks =
+    body.data.user.contributionsCollection.contributionCalendar.weeks;
   const commits = {};
   for (const week of weeks) {
     for (const day of week.contributionDays) {
@@ -425,5 +430,5 @@ async function statsStreak(interaction) {
     .setFooter({ text: "█ ▓ ░ = high → low | ⬛ = no commits" })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], ephemeral: false });
 }
