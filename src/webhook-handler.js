@@ -68,8 +68,8 @@ function formatMessage(discordId, event, payload) {
   }
 }
 
-function getUserByGithubLogin(githubLogin) {
-  const data = readData();
+async function getUserByGithubLogin(githubLogin) {
+  const data = await readData();
   for (const [discordId, userObj] of Object.entries(data.users)) {
     let login;
     if (typeof userObj === 'object' && userObj !== null) {
@@ -119,12 +119,12 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
-  const user = getUserByGithubLogin(sender);
+  const user = await getUserByGithubLogin(sender);
   if (!user) {
     return res.status(200).send("OK");
   }
 
-  const channels = readData().channels;
+  const channels = (await readData()).channels;
   const channelIds = Object.values(channels);
   let channelId =
     channelIds.length > 0 ? channelIds[0] : process.env.DISCORD_CHANNEL_ID;
@@ -152,7 +152,7 @@ export async function webhookHandler(req, res) {
   // Track today's commits from push events
   if (event === "push") {
     const commits = parsed.commits || [];
-    addCommitCount(user.discordId, commits.length);
+    await addCommitCount(user.discordId, commits.length);
   }
 
   res.status(200).send("OK");

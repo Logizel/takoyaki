@@ -9,7 +9,7 @@ export async function setchannelCommand(interaction) {
     });
   }
 
-  setChannel(interaction.guildId, interaction.channelId);
+  await setChannel(interaction.guildId, interaction.channelId);
 
   const embed = new EmbedBuilder()
     .setColor(0x28a745)

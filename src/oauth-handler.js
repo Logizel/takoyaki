@@ -41,7 +41,7 @@ async function sendEphemeralFollowup(token, content) {
 export async function oauthCallbackHandler(req, res) {
   const { code, state } = req.query;
 
-  const stateData = getOAuthState(state);
+  const stateData = await getOAuthState(state);
   if (!stateData) {
     return res.send(`<!DOCTYPE html>
       <html><head><title>Authentication Expired</title>${DARK_THEME}</head>
@@ -81,8 +81,8 @@ export async function oauthCallbackHandler(req, res) {
     const userData = await userResponse.json();
     if (!userData.login) throw new Error('Failed to fetch GitHub user');
 
-    setUser(stateData.discord_id, { githubLogin: userData.login, accessToken: tokenData.access_token });
-    deleteOAuthState(state);
+    await setUser(stateData.discord_id, { githubLogin: userData.login, accessToken: tokenData.access_token });
+    await deleteOAuthState(state);
 
     await sendEphemeralFollowup(token, `✅ **Takoyaki** successfully linked your Discord to GitHub account: **@${userData.login}**`);
 

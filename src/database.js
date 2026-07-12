@@ -1,207 +1,170 @@
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
+import pg from 'pg';
 import crypto from 'crypto';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-const LOCAL_PATH = resolve(__dirname, '../data/data.json');
-const TMP_PATH = '/tmp/data.json';
-let DATA_PATH = process.env.DATA_PATH || LOCAL_PATH;
-
-function tryMkdir(dir) {
-  if (fs.existsSync(dir)) return true;
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-    return true;
-  } catch {
-    return false;
-  }
+async function ensureTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      discord_id TEXT PRIMARY KEY,
+      github_login TEXT NOT NULL,
+      access_token TEXT
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS channels (
+      guild_id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state TEXT PRIMARY KEY,
+      discord_id TEXT NOT NULL,
+      interaction_token TEXT,
+      created_at BIGINT NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS commits (
+      discord_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (discord_id, date)
+    )
+  `);
 }
 
-function ensureDataDir() {
-  const dir = resolve(DATA_PATH, '..');
-  if (tryMkdir(dir)) return;
+ensureTables().catch(err => {
+  console.error('Failed to ensure database tables:', err);
+});
 
-  if (DATA_PATH !== LOCAL_PATH) {
-    console.warn(`Cannot write to ${DATA_PATH}, falling back to ${LOCAL_PATH}`);
-    DATA_PATH = LOCAL_PATH;
-    if (tryMkdir(resolve(LOCAL_PATH, '..'))) return;
-  }
-
-  console.warn(`Cannot write to ${DATA_PATH}, falling back to ${TMP_PATH}`);
-  DATA_PATH = TMP_PATH;
-  if (!tryMkdir(resolve(TMP_PATH, '..'))) {
-    throw new Error('No writable data path found — tried DATA_PATH, LOCAL_PATH, and /tmp/');
-  }
+export async function getUser(discordId) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE discord_id = $1', [discordId]);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return { githubLogin: row.github_login, accessToken: row.access_token };
 }
 
-export function readData() {
-  ensureDataDir();
-  if (!fs.existsSync(DATA_PATH)) {
-    return { users: {}, channels: {}, oauth_states: {}, commits: {} };
-  }
-  try {
-    const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-
-    // Clean expired oauth_states
-    const now = Date.now();
-    const validStates = {};
-    for (const [state, value] of Object.entries(data.oauth_states || {})) {
-      if (now - value.created_at <= 5 * 60 * 1000) {
-        validStates[state] = value;
-      }
-    }
-    data.oauth_states = validStates;
-
-    // Migrate old string-format users to object format
-    for (const [id, val] of Object.entries(data.users || {})) {
-      if (typeof val === 'string') {
-        data.users[id] = { githubLogin: val, accessToken: null };
-      }
-    }
-
-    // Ensure commits key exists
-    if (!data.commits) data.commits = {};
-
-    return data;
-  } catch {
-    return { users: {}, channels: {}, oauth_states: {}, commits: {} };
-  }
+export async function setUser(discordId, userObj) {
+  await pool.query(
+    'INSERT INTO users (discord_id, github_login, access_token) VALUES ($1, $2, $3) ON CONFLICT (discord_id) DO UPDATE SET github_login = $2, access_token = $3',
+    [discordId, userObj.githubLogin, userObj.accessToken]
+  );
 }
 
-function writeData(data) {
-  ensureDataDir();
-  const tempPath = `${DATA_PATH}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
-  fs.renameSync(tempPath, DATA_PATH);
+export async function deleteUser(discordId) {
+  await pool.query('DELETE FROM users WHERE discord_id = $1', [discordId]);
 }
 
-export function getUser(discordId) {
-  const data = readData();
-  return data.users[discordId] || null;
+export async function getChannel(guildId) {
+  const { rows } = await pool.query('SELECT * FROM channels WHERE guild_id = $1', [guildId]);
+  return rows.length > 0 ? rows[0].channel_id : null;
 }
 
-export function setUser(discordId, userObj) {
-  const data = readData();
-  data.users[discordId] = userObj;
-  writeData(data);
+export async function setChannel(guildId, channelId) {
+  await pool.query(
+    'INSERT INTO channels (guild_id, channel_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2',
+    [guildId, channelId]
+  );
 }
 
-export function deleteUser(discordId) {
-  const data = readData();
-  delete data.users[discordId];
-  writeData(data);
+export async function getChannelId() {
+  const { rows } = await pool.query('SELECT channel_id FROM channels LIMIT 1');
+  return rows.length > 0 ? rows[0].channel_id : null;
 }
 
-export function getChannel(guildId) {
-  const data = readData();
-  return data.channels[guildId] || null;
+export async function setChannelId(channelId) {
+  const { rows } = await pool.query('SELECT guild_id FROM channels LIMIT 1');
+  const guildId = rows.length > 0 ? rows[0].guild_id : 'default';
+  await setChannel(guildId, channelId);
 }
 
-export function setChannel(guildId, channelId) {
-  const data = readData();
-  data.channels[guildId] = channelId;
-  writeData(data);
-}
-
-export function getChannelId() {
-  const data = readData();
-  return Object.values(data.channels)[0] || null;
-}
-
-export function setChannelId(channelId) {
-  const data = readData();
-  const guildId = Object.keys(data.channels)[0] || 'default';
-  data.channels[guildId] = channelId;
-  writeData(data);
-}
-
-export function createOAuthState(discordId, interactionToken = null) {
-  const data = readData();
+export async function createOAuthState(discordId, interactionToken = null) {
   const state = crypto.randomBytes(16).toString('hex');
-  data.oauth_states[state] = { discord_id: discordId, interaction_token: interactionToken, created_at: Date.now() };
-  writeData(data);
+  await pool.query(
+    'INSERT INTO oauth_states (state, discord_id, interaction_token, created_at) VALUES ($1, $2, $3, $4)',
+    [state, discordId, interactionToken, Date.now()]
+  );
   return state;
 }
 
-export function getOAuthState(state) {
-  const data = readData();
-  const entry = data.oauth_states[state];
-  if (!entry) return null;
-  if (Date.now() - entry.created_at > 5 * 60 * 1000) {
-    delete data.oauth_states[state];
-    writeData(data);
+export async function getOAuthState(state) {
+  const { rows } = await pool.query('SELECT * FROM oauth_states WHERE state = $1', [state]);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (Date.now() - row.created_at > 5 * 60 * 1000) {
+    await pool.query('DELETE FROM oauth_states WHERE state = $1', [state]);
     return null;
   }
-  return entry;
+  return { discord_id: row.discord_id, interaction_token: row.interaction_token, created_at: row.created_at };
 }
 
-export function deleteOAuthState(state) {
-  const data = readData();
-  delete data.oauth_states[state];
-  writeData(data);
+export async function deleteOAuthState(state) {
+  await pool.query('DELETE FROM oauth_states WHERE state = $1', [state]);
 }
 
-// --- Commit tracking ---
+export async function addCommitCount(discordId, count) {
+  const key = todayKey();
+  await pool.query(
+    'INSERT INTO commits (discord_id, date, count) VALUES ($1, $2, $3) ON CONFLICT (discord_id, date) DO UPDATE SET count = commits.count + $3',
+    [discordId, key, count]
+  );
+}
+
+export async function getTodayCommits(discordId) {
+  const { rows } = await pool.query('SELECT count FROM commits WHERE discord_id = $1 AND date = $2', [discordId, todayKey()]);
+  return rows.length > 0 ? rows[0].count : 0;
+}
+
+export async function getAllTodayCommits() {
+  const { rows } = await pool.query('SELECT discord_id, count FROM commits WHERE date = $1', [todayKey()]);
+  return rows.map(r => ({ discordId: r.discord_id, count: r.count }));
+}
+
+export async function getCommitsForDateRange(discordId, startDate, endDate) {
+  const { rows } = await pool.query('SELECT SUM(count) AS total FROM commits WHERE discord_id = $1 AND date >= $2 AND date <= $3', [discordId, startDate, endDate]);
+  return rows[0]?.total || 0;
+}
+
+export async function getYearCommits(discordId) {
+  const now = new Date();
+  const yearAgo = new Date(now);
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  return getCommitsForDateRange(discordId, yearAgo.toISOString().slice(0, 10), now.toISOString().slice(0, 10));
+}
+
+export async function getAllLogins() {
+  const { rows } = await pool.query('SELECT discord_id, github_login, access_token FROM users');
+  return rows.map(r => ({ discordId: r.discord_id, githubLogin: r.github_login, accessToken: r.access_token }));
+}
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function addCommitCount(discordId, count) {
-  const data = readData();
-  if (!data.commits[discordId]) data.commits[discordId] = {};
-  const key = todayKey();
-  data.commits[discordId][key] = (data.commits[discordId][key] || 0) + count;
-  writeData(data);
-}
-
-export function getTodayCommits(discordId) {
-  const data = readData();
-  return data.commits[discordId]?.[todayKey()] || 0;
-}
-
-export function getAllTodayCommits() {
-  const data = readData();
-  const key = todayKey();
-  const result = [];
-  for (const [discordId, days] of Object.entries(data.commits || {})) {
-    const count = days[key] || 0;
-    if (count > 0) result.push({ discordId, count });
+export async function readData() {
+  const data = { users: {}, channels: {}, oauth_states: {}, commits: {} };
+  const [users, channels, states, commits] = await Promise.all([
+    pool.query('SELECT * FROM users'),
+    pool.query('SELECT * FROM channels'),
+    pool.query('SELECT * FROM oauth_states'),
+    pool.query('SELECT * FROM commits'),
+  ]);
+  for (const row of users.rows) {
+    data.users[row.discord_id] = { githubLogin: row.github_login, accessToken: row.access_token };
   }
-  return result;
-}
-
-export function getCommitsForDateRange(discordId, startDate, endDate) {
-  const data = readData();
-  const days = data.commits[discordId] || {};
-  let total = 0;
-  const current = new Date(startDate);
-  const end = new Date(endDate);
-  while (current <= end) {
-    const key = current.toISOString().slice(0, 10);
-    total += days[key] || 0;
-    current.setDate(current.getDate() + 1);
+  for (const row of channels.rows) {
+    data.channels[row.guild_id] = row.channel_id;
   }
-  return total;
-}
-
-export function getYearCommits(discordId) {
-  const now = new Date();
-  const yearAgo = new Date(now);
-  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-  return getCommitsForDateRange(discordId, yearAgo, now);
-}
-
-export function getAllLogins() {
-  const data = readData();
-  const result = [];
-  for (const [discordId, userObj] of Object.entries(data.users)) {
-    if (userObj && typeof userObj === 'object') {
-      result.push({ discordId, githubLogin: userObj.githubLogin, accessToken: userObj.accessToken });
-    }
+  for (const row of states.rows) {
+    data.oauth_states[row.state] = { discord_id: row.discord_id, interaction_token: row.interaction_token, created_at: row.created_at };
   }
-  return result;
+  for (const row of commits.rows) {
+    if (!data.commits[row.discord_id]) data.commits[row.discord_id] = {};
+    data.commits[row.discord_id][row.date] = row.count;
+  }
+  return data;
 }

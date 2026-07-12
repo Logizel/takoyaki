@@ -48,8 +48,8 @@ function yearAgoStr() {
 function dateStart(s) { return s + 'T00:00:00Z'; }
 function dateEnd(s) { return s + 'T23:59:59Z'; }
 
-function generateStreakGrid(discordId) {
-  const data = readData();
+async function generateStreakGrid(discordId) {
+  const data = await readData();
   const commits = data.commits[discordId] || {};
 
   const today = new Date();
@@ -110,7 +110,7 @@ export async function statsCommand(interaction) {
 }
 
 async function statsMe(interaction) {
-  const user = getUser(interaction.user.id);
+  const user = await getUser(interaction.user.id);
   if (!user || !user.accessToken) {
     return interaction.reply({
       content: '❌ No GitHub account linked or missing access token. Please run `/github link` again.',
@@ -122,7 +122,6 @@ async function statsMe(interaction) {
 
   try {
     const today = todayStr();
-    const until = todayStr();
     const yearAgo = yearAgoStr();
 
     const [yearCount, todayCount] = await Promise.all([
@@ -153,8 +152,8 @@ async function statsCompare(interaction) {
     return interaction.reply({ content: '❌ Please specify a user to compare with.', ephemeral: true });
   }
 
-  const me = getUser(interaction.user.id);
-  const them = getUser(targetUser.id);
+  const me = await getUser(interaction.user.id);
+  const them = await getUser(targetUser.id);
 
   if (!me || !me.accessToken) {
     return interaction.reply({ content: '❌ You need to link your GitHub account first via `/github link`.', ephemeral: true });
@@ -197,7 +196,7 @@ async function statsCompare(interaction) {
 }
 
 async function statsTop(interaction) {
-  const allUsers = getAllLogins().filter(u => u.accessToken);
+  const allUsers = (await getAllLogins()).filter(u => u.accessToken);
   if (allUsers.length === 0) {
     return interaction.reply({ content: '❌ No users have linked their GitHub accounts yet.', ephemeral: true });
   }
@@ -246,7 +245,7 @@ async function statsTop(interaction) {
 }
 
 async function statsTopDay(interaction) {
-  const allToday = getAllTodayCommits();
+  const allToday = await getAllTodayCommits();
   if (allToday.length === 0) {
     return interaction.reply({ content: '📭 No commits from anyone today yet.', ephemeral: true });
   }
@@ -271,7 +270,7 @@ async function statsTopDay(interaction) {
 }
 
 async function statsStreak(interaction) {
-  const user = getUser(interaction.user.id);
+  const user = await getUser(interaction.user.id);
   if (!user) {
     return interaction.reply({
       content: '❌ No GitHub account linked. Please run `/github link` first.',
@@ -279,7 +278,7 @@ async function statsStreak(interaction) {
     });
   }
 
-  const grid = generateStreakGrid(interaction.user.id);
+  const grid = await generateStreakGrid(interaction.user.id);
   const embed = new EmbedBuilder()
     .setColor(0x24292e)
     .setTitle(`📊 Commit Streak — @${user.githubLogin}`)

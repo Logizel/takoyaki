@@ -2,7 +2,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { createOAuthState, getUser } from '../database.js';
 
 export async function linkCommand(interaction) {
-  const existingUser = getUser(interaction.user.id);
+  const existingUser = await getUser(interaction.user.id);
   const appName = process.env.GITHUB_APP_NAME;
   if (!appName) {
     return interaction.reply({
@@ -11,7 +11,7 @@ export async function linkCommand(interaction) {
     });
   }
 
-  const state = createOAuthState(interaction.user.id, interaction.token);
+  const state = await createOAuthState(interaction.user.id, interaction.token);
   const installUrl = `https://github.com/apps/${appName}/installations/new?state=${state}`;
 
   let title = '🔗 Link GitHub Account';
