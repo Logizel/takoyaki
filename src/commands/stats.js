@@ -9,7 +9,9 @@ const GQL_QUERY = `
   query($login: String!, $from: DateTime!, $to: DateTime!) {
     user(login: $login) {
       contributionsCollection(from: $from, to: $to) {
-        totalContributions
+        contributionCalendar {
+          totalContributions
+        }
       }
     }
   }
@@ -32,7 +34,7 @@ async function fetchCommitCount(login, token, since, until) {
     console.error('GitHub API error:', res.status, JSON.stringify(body.errors || body));
     throw new Error(`GitHub API: ${res.status}`);
   }
-  return body.data.user.contributionsCollection.totalContributions || 0;
+  return body.data.user.contributionsCollection.contributionCalendar.totalContributions || 0;
 }
 
 function todayStr() {
