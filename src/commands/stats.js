@@ -1,10 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import {
-  getUser,
-  getAllLogins,
-  getTodayCommits,
-  getAllTodayCommits,
-} from "../database.js";
+import { getUser, getAllLogins } from "../database.js";
 
 function fmt(n) {
   return n.toLocaleString();
@@ -386,31 +381,69 @@ async function statsTop(interaction) {
 }
 
 async function statsTopDay(interaction) {
-  const allToday = await getAllTodayCommits();
-  if (allToday.length === 0) {
+  const allUsers = (await getAllLogins()).filter((u) => u.accessToken);
+  if (allUsers.length === 0) {
     return interaction.reply({
-      content: "📭 No commits from anyone today yet.",
+      content: "📭 No users have linked their GitHub accounts yet.",
       ephemeral: true,
     });
   }
 
-  allToday.sort((a, b) => b.count - a.count);
+  await interaction.deferReply({ ephemeral: true });
 
-  const medals = ["🥇", "🥈", "🥉"];
-  let description = `📅 **${todayStr()}**\n\n`;
-  for (let i = 0; i < Math.min(allToday.length, 10); i++) {
-    const r = allToday[i];
-    const rank = i < 3 ? medals[i] : `#${i + 1}`;
-    description += `${rank} <@${r.discordId}> — **${fmt(r.count)}** commit${r.count !== 1 ? "s" : ""}\n`;
+  try {
+    const today = todayStr();
+
+    const results = [];
+    for (const u of allUsers) {
+      try {
+        const count = await fetchCommitCount(
+          u.githubLogin,
+          u.accessToken,
+          dateStart(today),
+          dateEnd(today),
+        );
+        if (count > 0) {
+          results.push({
+            discordId: u.discordId,
+            githubLogin: u.githubLogin,
+            count,
+          });
+        }
+      } catch {
+        // skip failed fetches
+      }
+    }
+
+    if (results.length === 0) {
+      return interaction.editReply({ content: "📭 No contributions from anyone today yet." });
+    }
+
+    results.sort((a, b) => b.count - a.count);
+
+    const medals = ["🥇", "🥈", "🥉"];
+    let description = `📅 **${todayStr()}**\n\n`;
+    for (let i = 0; i < Math.min(results.length, 10); i++) {
+      const r = results[i];
+      const rank = i < 3 ? medals[i] : `#${i + 1}`;
+      description += `${rank} <@${r.discordId}> — **${fmt(r.count)}** contribution${r.count !== 1 ? "s" : ""}\n`;
+    }
+
+    if (results.length > 10) {
+      description += `\n... and ${results.length - 10} more`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x24292e)
+      .setTitle("📊 Today's Contribution Leaders")
+      .setDescription(description)
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error("Stats top-day error:", err);
+    await interaction.editReply({ content: "❌ Failed to fetch today's leaderboard. Try again later." });
   }
-
-  const embed = new EmbedBuilder()
-    .setColor(0x24292e)
-    .setTitle("📊 Today's Commit Leaders")
-    .setDescription(description)
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed], ephemeral: false });
 }
 
 async function statsStreak(interaction) {
