@@ -9,7 +9,7 @@ const GQL_QUERY = `
   query($login: String!, $from: DateTime!, $to: DateTime!) {
     user(login: $login) {
       contributionsCollection(from: $from, to: $to) {
-        totalCommitContributions
+        totalContributions
       }
     }
   }
@@ -32,7 +32,7 @@ async function fetchCommitCount(login, token, since, until) {
     console.error('GitHub API error:', res.status, JSON.stringify(body.errors || body));
     throw new Error(`GitHub API: ${res.status}`);
   }
-  return body.data.user.contributionsCollection.totalCommitContributions || 0;
+  return body.data.user.contributionsCollection.totalContributions || 0;
 }
 
 function todayStr() {
@@ -125,15 +125,17 @@ async function statsMe(interaction) {
     const until = todayStr();
     const yearAgo = yearAgoStr();
 
-    const yearCount = await fetchCommitCount(user.githubLogin, user.accessToken, dateStart(yearAgo), dateEnd(today));
-    const localToday = getTodayCommits(interaction.user.id);
+    const [yearCount, todayCount] = await Promise.all([
+      fetchCommitCount(user.githubLogin, user.accessToken, dateStart(yearAgo), dateEnd(today)),
+      fetchCommitCount(user.githubLogin, user.accessToken, dateStart(today), dateEnd(today)),
+    ]);
 
     const embed = new EmbedBuilder()
       .setColor(0x24292e)
-      .setTitle(`📊 Commit Stats — @${user.githubLogin}`)
+      .setTitle(`📊 Contribution Stats — @${user.githubLogin}`)
       .addFields(
-        { name: '📅 Today', value: `**${fmt(localToday)}** commits`, inline: true },
-        { name: '📆 Past 365 days', value: `**${fmt(yearCount)}** commits`, inline: true },
+        { name: '📅 Today', value: `**${fmt(todayCount)}** contributions`, inline: true },
+        { name: '📆 Past 365 days', value: `**${fmt(yearCount)}** contributions`, inline: true },
         { name: '🏆 Daily average', value: `**${(yearCount / 365).toFixed(1)}** / day`, inline: true },
       )
       .setTimestamp();
@@ -178,11 +180,11 @@ async function statsCompare(interaction) {
 
     const embed = new EmbedBuilder()
       .setColor(0x24292e)
-      .setTitle('📊 Commit Comparison (Past 365 Days)')
+      .setTitle('📊 Contribution Comparison (Past 365 Days)')
       .setDescription(`${winner} is ahead!`)
       .addFields(
-        { name: `@${me.githubLogin}`, value: `**${fmt(myYear)}** commits`, inline: true },
-        { name: `@${them.githubLogin}`, value: `**${fmt(theirYear)}** commits`, inline: true },
+        { name: `@${me.githubLogin}`, value: `**${fmt(myYear)}** contributions`, inline: true },
+        { name: `@${them.githubLogin}`, value: `**${fmt(theirYear)}** contributions`, inline: true },
         { name: 'Difference', value: `**${sign}${fmt(Math.abs(diff))}**`, inline: true },
       )
       .setTimestamp();
@@ -223,7 +225,7 @@ async function statsTop(interaction) {
     for (let i = 0; i < Math.min(results.length, 10); i++) {
       const r = results[i];
       const rank = i < 3 ? medals[i] : `#${i + 1}`;
-      description += `${rank} <@${r.discordId}> — **${fmt(r.count)}** commits\n`;
+      description += `${rank} <@${r.discordId}> — **${fmt(r.count)}** contributions\n`;
     }
 
     if (results.length > 10) {
@@ -232,7 +234,7 @@ async function statsTop(interaction) {
 
     const embed = new EmbedBuilder()
       .setColor(0x24292e)
-      .setTitle('🏆 Commit Leaderboard (Past 365 Days)')
+      .setTitle('🏆 Contribution Leaderboard (Past 365 Days)')
       .setDescription(description)
       .setTimestamp();
 
