@@ -4,7 +4,6 @@ import {
   getAllLogins,
   getTodayCommits,
   getAllTodayCommits,
-  readData,
 } from "../database.js";
 
 function fmt(n) {
@@ -17,6 +16,23 @@ const GQL_QUERY = `
       contributionsCollection(from: $from, to: $to) {
         contributionCalendar {
           totalContributions
+        }
+      }
+    }
+  }
+`;
+
+const GQL_CALENDAR = `
+  query($login: String!, $from: DateTime!, $to: DateTime!) {
+    user(login: $login) {
+      contributionsCollection(from: $from, to: $to) {
+        contributionCalendar {
+          weeks {
+            contributionDays {
+              date
+              contributionCount
+            }
+          }
         }
       }
     }
@@ -67,16 +83,39 @@ function dateEnd(s) {
   return s + "T23:59:59Z";
 }
 
-async function generateStreakGrid(discordId) {
-  const data = await readData();
-  const commits = data.commits[discordId] || {};
+async function generateStreakGrid(login, token) {
+  const today = todayStr();
+  const yearAgo = yearAgoStr();
+  const res = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: GQL_CALENDAR,
+      variables: { login, from: dateStart(yearAgo), to: dateEnd(today) },
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok || body.errors) {
+    console.error("GitHub API error:", res.status, JSON.stringify(body.errors || body));
+    throw new Error(`GitHub API: ${res.status}`);
+  }
+  const weeks = body.data.user.contributionsCollection.contributionCalendar.weeks;
+  const commits = {};
+  for (const week of weeks) {
+    for (const day of week.contributionDays) {
+      commits[day.date] = day.contributionCount;
+    }
+  }
 
-  const today = new Date();
+  const now = new Date();
   const oneDay = 24 * 60 * 60 * 1000;
 
   const grid = [];
   for (let i = 0; i < 182; i++) {
-    const d = new Date(today.getTime() - i * oneDay);
+    const d = new Date(now.getTime() - i * oneDay);
     const key = d.toISOString().slice(0, 10);
     grid.push({ date: d, count: commits[key] || 0 });
   }
@@ -378,11 +417,11 @@ async function statsStreak(interaction) {
     });
   }
 
-  const grid = await generateStreakGrid(interaction.user.id);
+  const grid = await generateStreakGrid(user.githubLogin, user.accessToken);
   const embed = new EmbedBuilder()
     .setColor(0x24292e)
-    .setTitle(`📊 Commit Streak — @${user.githubLogin}`)
-    .setDescription(`Past 365 days (data from webhook pushes)\n\n${grid}`)
+    .setTitle(`📊 Contribution Streak — @${user.githubLogin}`)
+    .setDescription(`Past 365 days\n\n${grid}`)
     .setFooter({ text: "█ ▓ ░ = high → low | ⬛ = no commits" })
     .setTimestamp();
 
