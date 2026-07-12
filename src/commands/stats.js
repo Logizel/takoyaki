@@ -6,7 +6,7 @@ function fmt(n) {
 }
 
 async function fetchCommitCount(login, token, since, until) {
-  const q = `author:${login}+committer-date:${since}..${until}`;
+  const q = `repo:* author:${login} committer-date:${since}..${until}`;
   const url = `https://api.github.com/search/commits?q=${encodeURIComponent(q)}`;
   const res = await fetch(url, {
     headers: {
@@ -109,22 +109,14 @@ async function statsMe(interaction) {
     const until = todayStr();
     const yearAgo = yearAgoStr();
 
-    const sinceToday = today + 'T00:00:00Z';
-    const untilToday = today + 'T23:59:59Z';
-
-    const [todayCount, yearCount, localToday] = await Promise.all([
-      fetchCommitCount(user.githubLogin, user.accessToken, sinceToday, untilToday),
-      fetchCommitCount(user.githubLogin, user.accessToken, yearAgo, until),
-      Promise.resolve(getTodayCommits(interaction.user.id)),
-    ]);
-
-    const totalLocal = yearCount + localToday;
+    const yearCount = await fetchCommitCount(user.githubLogin, user.accessToken, yearAgo, today + 'T23:59:59Z');
+    const localToday = getTodayCommits(interaction.user.id);
 
     const embed = new EmbedBuilder()
       .setColor(0x24292e)
       .setTitle(`📊 Commit Stats — @${user.githubLogin}`)
       .addFields(
-        { name: '📅 Today', value: `**${fmt(todayCount + localToday)}** commits`, inline: true },
+        { name: '📅 Today', value: `**${fmt(localToday)}** commits`, inline: true },
         { name: '📆 Past 365 days', value: `**${fmt(yearCount)}** commits`, inline: true },
         { name: '🏆 Daily average', value: `**${(yearCount / 365).toFixed(1)}** / day`, inline: true },
       )
