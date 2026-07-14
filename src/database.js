@@ -35,6 +35,13 @@ async function ensureTables() {
       PRIMARY KEY (discord_id, date)
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tracked_orgs (
+      guild_id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL,
+      org_name TEXT NOT NULL
+    )
+  `);
 }
 
 ensureTables().catch(err => {
@@ -141,17 +148,39 @@ export async function getAllLogins() {
   return rows.map(r => ({ discordId: r.discord_id, githubLogin: r.github_login, accessToken: r.access_token }));
 }
 
+export async function setOrgTrack(guildId, channelId, orgName) {
+  await pool.query(
+    'INSERT INTO tracked_orgs (guild_id, channel_id, org_name) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, org_name = $3',
+    [guildId, channelId, orgName]
+  );
+}
+
+export async function getOrgTrackByGuild(guildId) {
+  const { rows } = await pool.query('SELECT * FROM tracked_orgs WHERE guild_id = $1', [guildId]);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export async function getOrgTrackByOrgName(orgName) {
+  const { rows } = await pool.query('SELECT * FROM tracked_orgs WHERE org_name = $1', [orgName]);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export async function deleteOrgTrack(guildId) {
+  await pool.query('DELETE FROM tracked_orgs WHERE guild_id = $1', [guildId]);
+}
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export async function readData() {
-  const data = { users: {}, channels: {}, oauth_states: {}, commits: {} };
-  const [users, channels, states, commits] = await Promise.all([
+  const data = { users: {}, channels: {}, oauth_states: {}, commits: {}, tracked_orgs: {} };
+  const [users, channels, states, commits, orgs] = await Promise.all([
     pool.query('SELECT * FROM users'),
     pool.query('SELECT * FROM channels'),
     pool.query('SELECT * FROM oauth_states'),
     pool.query('SELECT * FROM commits'),
+    pool.query('SELECT * FROM tracked_orgs'),
   ]);
   for (const row of users.rows) {
     data.users[row.discord_id] = { githubLogin: row.github_login, accessToken: row.access_token };
@@ -165,6 +194,9 @@ export async function readData() {
   for (const row of commits.rows) {
     if (!data.commits[row.discord_id]) data.commits[row.discord_id] = {};
     data.commits[row.discord_id][row.date] = row.count;
+  }
+  for (const row of orgs.rows) {
+    data.tracked_orgs[row.guild_id] = { channel_id: row.channel_id, org_name: row.org_name };
   }
   return data;
 }

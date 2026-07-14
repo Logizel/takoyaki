@@ -1,4 +1,4 @@
-import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { setChannel } from '../database.js';
 
 export async function setchannelCommand(interaction) {
@@ -14,8 +14,19 @@ export async function setchannelCommand(interaction) {
   const embed = new EmbedBuilder()
     .setColor(0x28a745)
     .setTitle('✅ Channel Set for Notifications')
-    .setDescription(`Takoyaki will now send GitHub notifications to <#${interaction.channelId}>.`)
+    .setDescription(`Notifications will be sent to <#${interaction.channelId}>.\n\nChoose a mode:`)
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('org_mode')
+      .setLabel('🏢 Enable Org Mode')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('standard_mode')
+      .setLabel('📋 Standard Mode')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({ embeds: [embed], components: [row] });
 }

@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { readData, addCommitCount } from "./database.js";
+import { readData, addCommitCount, getOrgTrackByOrgName } from "./database.js";
 
 function verifySignature(payload, signature, secret) {
   const expected = `sha256=${crypto.createHmac("sha256", secret).update(payload).digest("hex")}`;
@@ -9,11 +9,14 @@ function verifySignature(payload, signature, secret) {
   return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
 }
 
-function formatMessage(discordId, event, payload) {
-  const sender = payload.sender?.login;
+function formatMessage(discordId, event, payload, orgSender) {
+  const sender = orgSender || payload.sender?.login;
   const repo = payload.repository?.name;
   const isPrivate = payload.repository?.private;
-  const mention = `<@${discordId}>`;
+  const owner = payload.repository?.owner?.login;
+  const prefix = discordId ? `<@${discordId}>` : `**${sender}**`;
+
+  const repoFull = owner ? `${owner}/${repo}` : repo;
 
   switch (event) {
     case "push": {
@@ -21,23 +24,23 @@ function formatMessage(discordId, event, payload) {
       const count = commits.length;
       const firstMsg = commits[0]?.message || "No commit message";
       if (isPrivate) {
-        return `${mention} pushed ${count} commit${count !== 1 ? "s" : ""} to a **private repository**.`;
+        return `${prefix} pushed ${count} commit${count !== 1 ? "s" : ""} to a **private repository**.`;
       }
-      return `${mention} pushed ${count} commit${count !== 1 ? "s" : ""} to **${repo}** — *${firstMsg}*`;
+      return `${prefix} pushed ${count} commit${count !== 1 ? "s" : ""} to **${repoFull}** — *${firstMsg}*`;
     }
     case "pull_request": {
       const action = payload.action;
       const title = payload.pull_request?.title;
       if (action === "opened") {
         if (isPrivate)
-          return `${mention} opened a PR in a **private repository**.`;
-        return `${mention} opened a PR in **${repo}**: *${title}*`;
+          return `${prefix} opened a PR in a **private repository**.`;
+        return `${prefix} opened a PR in **${repoFull}**: *${title}*`;
       }
       if (action === "closed" || action === "merged") {
         const verb = action === "merged" ? "merged" : "closed";
         if (isPrivate)
-          return `${mention} ${verb} a PR in a **private repository**.`;
-        return `${mention} ${verb} a PR in **${repo}**: *${title}*`;
+          return `${prefix} ${verb} a PR in a **private repository**.`;
+        return `${prefix} ${verb} a PR in **${repoFull}**: *${title}*`;
       }
       return null;
     }
@@ -46,20 +49,20 @@ function formatMessage(discordId, event, payload) {
       const title = payload.issue?.title;
       if (action === "opened") {
         if (isPrivate)
-          return `${mention} opened an issue in a **private repository**.`;
-        return `${mention} opened an issue in **${repo}**: *${title}*`;
+          return `${prefix} opened an issue in a **private repository**.`;
+        return `${prefix} opened an issue in **${repoFull}**: *${title}*`;
       }
       if (action === "closed") {
         if (isPrivate)
-          return `${mention} closed an issue in a **private repository**.`;
-        return `${mention} closed an issue in **${repo}**: *${title}*`;
+          return `${prefix} closed an issue in a **private repository**.`;
+        return `${prefix} closed an issue in **${repoFull}**: *${title}*`;
       }
       return null;
     }
     case "repository": {
       if (payload.action === "created") {
-        if (isPrivate) return `${mention} created a **private repository**.`;
-        return `${mention} created **${repo}**`;
+        if (isPrivate) return `${prefix} created a **private repository**.`;
+        return `${prefix} created **${repoFull}**`;
       }
       return null;
     }
@@ -119,6 +122,28 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
+  const repoOwner = parsed.repository?.owner?.login;
+  const orgTrack = repoOwner ? await getOrgTrackByOrgName(repoOwner) : null;
+
+  if (orgTrack) {
+    const message = formatMessage(null, event, parsed, sender);
+    if (!message) {
+      return res.status(200).send("OK");
+    }
+    try {
+      const client = global.discordClient;
+      if (client) {
+        const channel = client.channels.cache.get(orgTrack.channel_id);
+        if (channel && channel.isTextBased()) {
+          await channel.send(message);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to send webhook message:", error);
+    }
+    return res.status(200).send("OK");
+  }
+
   const user = await getUserByGithubLogin(sender);
   if (!user) {
     return res.status(200).send("OK");
@@ -149,7 +174,6 @@ export async function webhookHandler(req, res) {
     console.error("Failed to send webhook message:", error);
   }
 
-  // Track today's commits from push events
   if (event === "push") {
     const commits = parsed.commits || [];
     await addCommitCount(user.discordId, commits.length);

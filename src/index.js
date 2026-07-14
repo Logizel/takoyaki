@@ -5,6 +5,12 @@ import {
   Events,
   ActivityType,
   PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
 import express from "express";
 import { oauthCallbackHandler } from "./oauth-handler.js";
@@ -13,6 +19,7 @@ import { linkCommand } from "./commands/link.js";
 import { unlinkCommand } from "./commands/unlink.js";
 import { statsCommand } from "./commands/stats.js";
 import { setchannelCommand } from "./commands/setchannel.js";
+import { setOrgTrack, getOrgTrackByGuild, setChannel } from "./database.js";
 
 const app = express();
 const client = new Client({
@@ -50,12 +57,66 @@ client.once(Events.ClientReady, (c) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) {
+    if (interaction.customId === "org_mode") {
+      const modal = new ModalBuilder()
+        .setCustomId("org_modal")
+        .setTitle("Enable Org Mode")
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("org_name")
+              .setLabel("GitHub Organization Name")
+              .setStyle(TextInputStyle.Short)
+              .setPlaceholder("e.g. takoyaki")
+              .setRequired(true),
+          ),
+        );
+      await interaction.showModal(modal);
+    } else if (interaction.customId === "standard_mode") {
+      await interaction.update({
+        content: "✅ Standard mode activated. Users can link their personal GitHub accounts.",
+        embeds: [],
+        components: [],
+      });
+    }
+    return;
+  }
+
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === "org_modal") {
+      const orgName = interaction.fields.getTextInputValue("org_name").trim().toLowerCase();
+      if (!orgName) {
+        return interaction.reply({ content: "❌ Organization name is required.", ephemeral: true });
+      }
+      await setOrgTrack(interaction.guildId, interaction.channelId, orgName);
+      const appName = process.env.GITHUB_APP_NAME;
+      const installUrl = `https://github.com/apps/${appName}/installations/new`;
+      await interaction.update({
+        content: `✅ **Org Mode** activated for **${orgName}**.\n\nInstall the GitHub App on your org:\n${installUrl}\n\nAfter installing, push/PR/issue events from any **${orgName}** repo will appear in this channel.`,
+        embeds: [],
+        components: [],
+      });
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
+  const guildId = interaction.guildId;
 
   if (commandName === "github") {
     const subcommand = interaction.options.getSubcommand();
+
+    const orgTrack = await getOrgTrackByGuild(guildId);
+    if (orgTrack) {
+      return interaction.reply({
+        content: "❌ Org mode is active in this server. Personal GitHub linking is disabled.",
+        ephemeral: true,
+      });
+    }
+
     if (subcommand === "link") {
       await linkCommand(interaction);
     } else if (subcommand === "unlink") {
@@ -64,6 +125,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } else if (commandName === "setchannel") {
     await setchannelCommand(interaction);
   } else if (commandName === "stats") {
+    const orgTrack = await getOrgTrackByGuild(guildId);
+    if (orgTrack) {
+      return interaction.reply({
+        content: "❌ Stats are disabled in org mode.",
+        ephemeral: true,
+      });
+    }
     await statsCommand(interaction);
   }
 });
