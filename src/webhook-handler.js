@@ -1,5 +1,10 @@
 import crypto from "crypto";
-import { readData, addCommitCount, getOrgTrackByOrgName } from "./database.js";
+import { readData, addCommitCount, getOrgChannelsByOrgName } from "./database.js";
+
+async function getAllStandardChannels() {
+  const data = await readData();
+  return data.tracked_channels.filter(tc => tc.mode === 'standard');
+}
 
 function verifySignature(payload, signature, secret) {
   const expected = `sha256=${crypto.createHmac("sha256", secret).update(payload).digest("hex")}`;
@@ -123,23 +128,25 @@ export async function webhookHandler(req, res) {
   }
 
   const repoOwner = parsed.repository?.owner?.login;
-  const orgTrack = repoOwner ? await getOrgTrackByOrgName(repoOwner) : null;
+  const orgChannels = repoOwner ? await getOrgChannelsByOrgName(repoOwner) : [];
 
-  if (orgTrack) {
+  if (orgChannels.length > 0) {
     const message = formatMessage(null, event, parsed, sender);
     if (!message) {
       return res.status(200).send("OK");
     }
-    try {
-      const client = global.discordClient;
-      if (client) {
-        const channel = client.channels.cache.get(orgTrack.channel_id);
-        if (channel && channel.isTextBased()) {
-          await channel.send(message);
+    const client = global.discordClient;
+    if (client) {
+      for (const tc of orgChannels) {
+        try {
+          const channel = client.channels.cache.get(tc.channel_id);
+          if (channel && channel.isTextBased()) {
+            await channel.send(message);
+          }
+        } catch (error) {
+          console.error("Failed to send webhook message:", error);
         }
       }
-    } catch (error) {
-      console.error("Failed to send webhook message:", error);
     }
     return res.status(200).send("OK");
   }
@@ -149,29 +156,39 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
-  const channels = (await readData()).channels;
-  const channelIds = Object.values(channels);
-  let channelId =
-    channelIds.length > 0 ? channelIds[0] : process.env.DISCORD_CHANNEL_ID;
-  if (!channelId) {
-    return res.status(200).send("OK");
-  }
-
   const message = formatMessage(user.discordId, event, parsed);
   if (!message) {
     return res.status(200).send("OK");
   }
 
-  try {
-    const client = global.discordClient;
-    if (client) {
-      const channel = client.channels.cache.get(channelId);
-      if (channel && channel.isTextBased()) {
-        await channel.send(message);
+  const standardChannels = await getAllStandardChannels();
+  const client = global.discordClient;
+  if (client) {
+    let sentToAny = false;
+    for (const tc of standardChannels) {
+      try {
+        const channel = client.channels.cache.get(tc.channel_id);
+        if (channel && channel.isTextBased()) {
+          await channel.send(message);
+          sentToAny = true;
+        }
+      } catch (error) {
+        console.error("Failed to send webhook message:", error);
       }
     }
-  } catch (error) {
-    console.error("Failed to send webhook message:", error);
+    if (!sentToAny) {
+      const fallback = process.env.DISCORD_CHANNEL_ID;
+      if (fallback) {
+        try {
+          const channel = client.channels.cache.get(fallback);
+          if (channel && channel.isTextBased()) {
+            await channel.send(message);
+          }
+        } catch (error) {
+          console.error("Failed to send webhook message to fallback:", error);
+        }
+      }
+    }
   }
 
   if (event === "push") {

@@ -36,10 +36,12 @@ async function ensureTables() {
     )
   `);
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS tracked_orgs (
-      guild_id TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS tracked_channels (
+      guild_id TEXT NOT NULL,
       channel_id TEXT NOT NULL,
-      org_name TEXT NOT NULL
+      mode TEXT NOT NULL,
+      org_name TEXT,
+      PRIMARY KEY (guild_id, channel_id)
     )
   `);
 }
@@ -148,25 +150,25 @@ export async function getAllLogins() {
   return rows.map(r => ({ discordId: r.discord_id, githubLogin: r.github_login, accessToken: r.access_token }));
 }
 
-export async function setOrgTrack(guildId, channelId, orgName) {
+export async function setTrackedChannel(guildId, channelId, mode, orgName = null) {
   await pool.query(
-    'INSERT INTO tracked_orgs (guild_id, channel_id, org_name) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET channel_id = $2, org_name = $3',
-    [guildId, channelId, orgName]
+    'INSERT INTO tracked_channels (guild_id, channel_id, mode, org_name) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, channel_id) DO UPDATE SET mode = $3, org_name = $4',
+    [guildId, channelId, mode, orgName]
   );
 }
 
-export async function getOrgTrackByGuild(guildId) {
-  const { rows } = await pool.query('SELECT * FROM tracked_orgs WHERE guild_id = $1', [guildId]);
-  return rows.length > 0 ? rows[0] : null;
+export async function deleteTrackedChannel(guildId, channelId) {
+  await pool.query('DELETE FROM tracked_channels WHERE guild_id = $1 AND channel_id = $2', [guildId, channelId]);
 }
 
-export async function getOrgTrackByOrgName(orgName) {
-  const { rows } = await pool.query('SELECT * FROM tracked_orgs WHERE org_name = $1', [orgName]);
-  return rows.length > 0 ? rows[0] : null;
+export async function getTrackedChannelsByMode(guildId, mode) {
+  const { rows } = await pool.query('SELECT * FROM tracked_channels WHERE guild_id = $1 AND mode = $2', [guildId, mode]);
+  return rows;
 }
 
-export async function deleteOrgTrack(guildId) {
-  await pool.query('DELETE FROM tracked_orgs WHERE guild_id = $1', [guildId]);
+export async function getOrgChannelsByOrgName(orgName) {
+  const { rows } = await pool.query('SELECT * FROM tracked_channels WHERE mode = $1 AND org_name = $2', ['org', orgName]);
+  return rows;
 }
 
 function todayKey() {
@@ -174,13 +176,13 @@ function todayKey() {
 }
 
 export async function readData() {
-  const data = { users: {}, channels: {}, oauth_states: {}, commits: {}, tracked_orgs: {} };
-  const [users, channels, states, commits, orgs] = await Promise.all([
+  const data = { users: {}, channels: {}, oauth_states: {}, commits: {}, tracked_channels: [] };
+  const [users, channels, states, commits, tcs] = await Promise.all([
     pool.query('SELECT * FROM users'),
     pool.query('SELECT * FROM channels'),
     pool.query('SELECT * FROM oauth_states'),
     pool.query('SELECT * FROM commits'),
-    pool.query('SELECT * FROM tracked_orgs'),
+    pool.query('SELECT * FROM tracked_channels'),
   ]);
   for (const row of users.rows) {
     data.users[row.discord_id] = { githubLogin: row.github_login, accessToken: row.access_token };
@@ -195,8 +197,8 @@ export async function readData() {
     if (!data.commits[row.discord_id]) data.commits[row.discord_id] = {};
     data.commits[row.discord_id][row.date] = row.count;
   }
-  for (const row of orgs.rows) {
-    data.tracked_orgs[row.guild_id] = { channel_id: row.channel_id, org_name: row.org_name };
+  for (const row of tcs.rows) {
+    data.tracked_channels.push({ guild_id: row.guild_id, channel_id: row.channel_id, mode: row.mode, org_name: row.org_name });
   }
   return data;
 }

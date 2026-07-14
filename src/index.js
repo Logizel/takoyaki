@@ -19,7 +19,7 @@ import { linkCommand } from "./commands/link.js";
 import { unlinkCommand } from "./commands/unlink.js";
 import { statsCommand } from "./commands/stats.js";
 import { setchannelCommand } from "./commands/setchannel.js";
-import { setOrgTrack, getOrgTrackByGuild, setChannel } from "./database.js";
+import { setTrackedChannel, getTrackedChannelsByMode, setChannel, deleteTrackedChannel } from "./database.js";
 
 const app = express();
 const client = new Client({
@@ -74,8 +74,46 @@ client.on(Events.InteractionCreate, async (interaction) => {
         );
       await interaction.showModal(modal);
     } else if (interaction.customId === "standard_mode") {
+      const existing = await getTrackedChannelsByMode(interaction.guildId, 'standard');
+      if (existing.length > 0) {
+        const oldChannelId = existing[0].channel_id;
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('confirm_std_override')
+            .setLabel('✅ Yes, Replace')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId('cancel_std_override')
+            .setLabel('❌ Cancel')
+            .setStyle(ButtonStyle.Secondary),
+        );
+        await interaction.update({
+          content: `⚠️ <#${oldChannelId}> is already set as the standard channel. Replace it with <#${interaction.channelId}>?`,
+          embeds: [],
+          components: [row],
+        });
+      } else {
+        await setTrackedChannel(interaction.guildId, interaction.channelId, 'standard');
+        await interaction.update({
+          content: "✅ Standard mode activated. Users can link their personal GitHub accounts.",
+          embeds: [],
+          components: [],
+        });
+      }
+    } else if (interaction.customId === "confirm_std_override") {
+      const existing = await getTrackedChannelsByMode(interaction.guildId, 'standard');
+      if (existing.length > 0) {
+        await deleteTrackedChannel(interaction.guildId, existing[0].channel_id);
+      }
+      await setTrackedChannel(interaction.guildId, interaction.channelId, 'standard');
       await interaction.update({
-        content: "✅ Standard mode activated. Users can link their personal GitHub accounts.",
+        content: `✅ Standard channel updated to <#${interaction.channelId}>.`,
+        embeds: [],
+        components: [],
+      });
+    } else if (interaction.customId === "cancel_std_override") {
+      await interaction.update({
+        content: "❌ No changes made.",
         embeds: [],
         components: [],
       });
@@ -89,7 +127,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!orgName) {
         return interaction.reply({ content: "❌ Organization name is required.", ephemeral: true });
       }
-      await setOrgTrack(interaction.guildId, interaction.channelId, orgName);
+      await setTrackedChannel(interaction.guildId, interaction.channelId, 'org', orgName);
       const appName = process.env.GITHUB_APP_NAME;
       const installUrl = `https://github.com/apps/${appName}/installations/new`;
       await interaction.update({
@@ -109,8 +147,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (commandName === "github") {
     const subcommand = interaction.options.getSubcommand();
 
-    const orgTrack = await getOrgTrackByGuild(guildId);
-    if (orgTrack) {
+    const orgChannels = await getTrackedChannelsByMode(guildId, 'org');
+    if (orgChannels.length > 0) {
       return interaction.reply({
         content: "❌ Org mode is active in this server. Personal GitHub linking is disabled.",
         ephemeral: true,
@@ -125,8 +163,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } else if (commandName === "setchannel") {
     await setchannelCommand(interaction);
   } else if (commandName === "stats") {
-    const orgTrack = await getOrgTrackByGuild(guildId);
-    if (orgTrack) {
+    const orgChannels = await getTrackedChannelsByMode(guildId, 'org');
+    if (orgChannels.length > 0) {
       return interaction.reply({
         content: "❌ Stats are disabled in org mode.",
         ephemeral: true,
