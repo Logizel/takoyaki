@@ -4,7 +4,7 @@ A Discord bot that monitors GitHub repository/organization activity and pings ev
 
 ## System Overview
 
-The application runs as a Node.js Express server that simultaneously operates a Discord.js client. GitHub sends webhook events to the Express endpoint; the bot verifies the payload signature, resolves the sender, determines the target channel(s) from the database, and posts a formatted message with the contextual link for that particular activity. A separate OAuth callback handler links Discord users to GitHub accounts via the GitHub App OAuth flow.
+The application runs as a Node.js Express server that simultaneously operates a Discord.js client. GitHub sends webhook events to the Express endpoint; the bot verifies the payload signature, resolves the sender, determines the target channel(s) from the database, and posts a formatted message with a contextual link button pointing to the relevant GitHub page (repository, PR, issue, or workflow run). A separate OAuth callback handler links Discord users to GitHub accounts via the GitHub App OAuth flow. The bot also supports CI/CD workflow run events for organization-mode channels.
 
 ## Commands
 
@@ -12,8 +12,8 @@ The application runs as a Node.js Express server that simultaneously operates a 
 
 Administrator-only. Initializes channel configuration in the current text channel. Presents an interactive mode-selection dialog:
 
-- **Standard Mode** — Registers the channel as the server's personal-activity destination. Linked users' push, pull request, issue, and repository events are posted here with Discord mentions. Limited to one Standard channel per guild; selecting a replacement triggers a confirmation prompt.
-- **Org Mode** — Opens a modal to input a GitHub organization name. Registers the channel to receive anonymized events (GitHub username only, no Discord mention) from any repository owned by that organization. Unlimited Org channels per guild; each targets a distinct organization.
+- **Standard Mode**: Registers the channel as the server's personal-activity destination. Linked users' push, pull request, issue, and repository events are posted here with Discord mentions. Limited to one Standard channel per guild; selecting a replacement triggers a confirmation prompt.
+- **Org Mode**: Opens a modal to input a GitHub organization name. Registers the channel to receive anonymized events (GitHub username only, no Discord mention) from any repository owned by that organization. Unlimited Org channels per guild; each targets a distinct organization.
 
 ### `/github link`
 
@@ -60,18 +60,19 @@ Commit counts from `push` events are recorded in the `commits` table for `/stats
 
 ## Event Formatting
 
-The `formatMessage` function produces text messages from webhook payloads. The prefix varies by routing path: linked users receive `<@discord_id>` (mention), while org events receive `**github_username**` (bold text). Private repositories are masked as "a private repository" regardless of event type.
+The `formatMessage` function produces text messages from webhook payloads. The prefix varies by routing path: linked users receive `<@discord_id>` (mention), while org events receive `**github_username**` (bold text). Private repositories are masked as "a private repository" regardless of event type and suppress the link button.
 
 ## Events
 
-| Event                          | Public                                                         | Private                                             |
-| ------------------------------ | -------------------------------------------------------------- | --------------------------------------------------- |
-| `push`                         | `{user} pushed N commits to {owner/repo} — {first commit msg}` | `{user} pushed N commits to a private repository`   |
-| `pull_request` (opened)        | `{user} opened a PR in {owner/repo}: {title}`                  | `{user} opened a PR in a private repository`        |
-| `pull_request` (closed/merged) | `{user} merged/closed a PR in {owner/repo}: {title}`           | `{user} merged/closed a PR in a private repository` |
-| `issues` (opened)              | `{user} opened an issue in {owner/repo}: {title}`              | `{user} opened an issue in a private repository`    |
-| `issues` (closed)              | `{user} closed an issue in {owner/repo}: {title}`              | `{user} closed an issue in a private repository`    |
-| `repository` (created)         | `{user} created {owner/repo}`                                  | `{user} created a private repository`               |
+| Event                          | Public                                                                    | Private                                             | Button            |
+| ------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------- | ----------------- |
+| `push`                         | `{user} pushed N commits to {owner/repo} — {first commit msg}`            | `{user} pushed N commits to a private repository`   | View Repository   |
+| `pull_request` (opened)        | `{user} opened a PR in {owner/repo}: {title}`                             | `{user} opened a PR in a private repository`        | View Pull Request |
+| `pull_request` (closed/merged) | `{user} merged/closed a PR in {owner/repo}: {title}`                      | `{user} merged/closed a PR in a private repository` | View Pull Request |
+| `issues` (opened)              | `{user} opened an issue in {owner/repo}: {title}`                         | `{user} opened an issue in a private repository`    | View Issue        |
+| `issues` (closed)              | `{user} closed an issue in {owner/repo}: {title}`                         | `{user} closed an issue in a private repository`    | View Issue        |
+| `repository` (created)         | `{user} created {owner/repo}`                                             | `{user} created a private repository`               | View Repository   |
+| `workflow_run` (completed)     | `{user} CI *{name}* **{conclusion}** on \`{branch}\` in **{owner/repo}**` | — (always treated as public)                        | View Run          |
 
 ## Environment Variables
 
