@@ -6,7 +6,7 @@
     <title>🐙 Takoyaki - GitHub Activity Pinger for Discord</title>
     <meta
       name="description"
-      content="Takoyaki - GitHub Activity Pinger for Discord. Real-time push, PR, and issue notifications, plus contribution stats and streak heatmaps."
+      content="Takoyaki - GitHub Activity Pinger for Discord. Real-time push, PR, issue, and CI/CD notifications, plus contribution stats and streak heatmaps. Supports personal and organization modes."
     />
     <meta
       property="og:title"
@@ -14,7 +14,7 @@
     />
     <meta
       property="og:description"
-      content="Real-time push, PR, and issue notifications, plus contribution stats and streak heatmaps."
+      content="Real-time push, PR, issue, and CI/CD notifications, contribution stats, streak heatmaps. Personal and organization modes."
     />
     <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -944,8 +944,9 @@
           <span class="eyebrow">GitHub Activity Pinger for Discord</span>
           <h1>Takoyaki</h1>
           <p class="lede">
-            Get real-time push, PR, and issue notifications, plus contribution
-            stats and streak heatmaps all without leaving Discord.
+            Get real-time push, PR, and issue notifications, contribution stats,
+            CI/CD workflow runs and Org mode streak heatmaps all without leaving
+            Discord.
           </p>
           <div class="hero-cta">
             <a
@@ -987,7 +988,7 @@
           </div>
           <p class="hero-tagline">
             Free <span class="dot">·</span> Open source
-            <span class="dot">·</span> Powered by GitHub &amp; Discord
+            <span class="dot">·</span> Powered by GitHub & Discord
           </p>
         </div>
 
@@ -1027,9 +1028,10 @@
             </div>
             <h3>Real-time pings</h3>
             <p>
-              Get notified the moment someone pushes, opens a pull request, or
-              files an issue. Private repos stay private. You only see their
-              activity.
+              Get notified the moment someone pushes, opens a pull request,
+              files an issue, or a CI/CD workflow completes. Each event comes
+              with a link button straight to the relevant GitHub page. Private
+              repos stay anonymous.
             </p>
           </div>
 
@@ -1141,9 +1143,7 @@
           </div>
           <div class="command reveal">
             <code>/stats streak</code
-            ><span
-              >Shows your current and longest commit streak as a heatmap</span
-            >
+            ><span>Shows your 182-day grid streak as a heatmap</span>
           </div>
           <div class="command reveal">
             <code>/github link</code
@@ -1156,7 +1156,8 @@
           <div class="command reveal">
             <code>/setchannel</code
             ><span
-              >Set the channel where Takoyaki posts activity notifications</span
+              >Set the channel where Takoyaki posts activity notifications and
+              configure Standard and Organisation mode</span
             >
           </div>
         </div>
@@ -1176,8 +1177,8 @@
             <div class="step-num">01</div>
             <h3>Install the GitHub App</h3>
             <p>
-              Add Takoyaki to your account or org so it can see pushes, PRs, and
-              issues.
+              Add Takoyaki to your personal account or organization. For org
+              tracking, install on the org directly.
             </p>
           </div>
           <div class="step reveal">
@@ -1190,9 +1191,27 @@
           <div class="step reveal">
             <div class="step-num">03</div>
             <h3>Run <code>/setchannel</code></h3>
-            <p>Pick where Takoyaki should post activity notifications. Done.</p>
+            <p>
+              Pick a channel and choose <b>Standard Mode</b> (personal pings) or
+              <b>Org Mode</b> (anonymous org-wide events). Done.
+            </p>
           </div>
         </div>
+        <p
+          style="
+            color: var(--cream-dim);
+            font-size: 0.92rem;
+            text-align: center;
+            margin-top: 40px;
+            max-width: 520px;
+            margin-left: auto;
+            margin-right: auto;
+          "
+        >
+          Standard Mode: link your account and get pinged on your activity. Org
+          Mode: track an entire organization without anyone needing to link
+          accounts.
+        </p>
       </div>
     </section>
 
