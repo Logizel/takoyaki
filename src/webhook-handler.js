@@ -7,14 +7,38 @@ async function getAllStandardChannels() {
   return data.tracked_channels.filter(tc => tc.mode === 'standard');
 }
 
-function getWorkflowComponents(event, parsed) {
-  if (event !== "workflow_run") return [];
-  const url = parsed.workflow_run?.html_url;
+function getEventComponents(event, parsed) {
+  const isPrivate = parsed.repository?.private || parsed.workflow_run?.repository?.private;
+  if (isPrivate) return [];
+
+  let url = null;
+  let label = null;
+
+  switch (event) {
+    case "push":
+    case "repository":
+      url = parsed.repository?.html_url;
+      label = "View Repository";
+      break;
+    case "pull_request":
+      url = parsed.pull_request?.html_url;
+      label = "View Pull Request";
+      break;
+    case "issues":
+      url = parsed.issue?.html_url;
+      label = "View Issue";
+      break;
+    case "workflow_run":
+      url = parsed.workflow_run?.html_url;
+      label = "View Run";
+      break;
+  }
+
   if (!url) return [];
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("View Run")
+        .setLabel(label)
         .setStyle(ButtonStyle.Link)
         .setURL(url)
     )
@@ -162,7 +186,7 @@ export async function webhookHandler(req, res) {
     if (!message) {
       return res.status(200).send("OK");
     }
-    const components = getWorkflowComponents(event, parsed);
+    const components = getEventComponents(event, parsed);
     const client = global.discordClient;
     if (client) {
       for (const tc of orgChannels) {
@@ -189,7 +213,7 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
-  const components = getWorkflowComponents(event, parsed);
+  const components = getEventComponents(event, parsed);
   const standardChannels = await getAllStandardChannels();
   const client = global.discordClient;
   if (client) {
