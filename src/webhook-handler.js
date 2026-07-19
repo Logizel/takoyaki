@@ -1,9 +1,24 @@
 import crypto from "crypto";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { readData, addCommitCount, getOrgChannelsByOrgName } from "./database.js";
 
 async function getAllStandardChannels() {
   const data = await readData();
   return data.tracked_channels.filter(tc => tc.mode === 'standard');
+}
+
+function getWorkflowComponents(event, parsed) {
+  if (event !== "workflow_run") return [];
+  const url = parsed.workflow_run?.html_url;
+  if (!url) return [];
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel("View Run")
+        .setStyle(ButtonStyle.Link)
+        .setURL(url)
+    )
+  ];
 }
 
 function verifySignature(payload, signature, secret) {
@@ -71,6 +86,18 @@ function formatMessage(discordId, event, payload, orgSender) {
       }
       return null;
     }
+    case "workflow_run": {
+      const action = payload.action;
+      const run = payload.workflow_run;
+      const name = run?.name;
+      const conclusion = run?.conclusion;
+      const branch = run?.head_branch;
+      const repoFull = run?.repository?.full_name;
+      if (action === "completed" && conclusion) {
+        return `${prefix} CI *${name}* **${conclusion}** on \`${branch}\` in **${repoFull}**`;
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -127,7 +154,7 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
-  const repoOwner = parsed.repository?.owner?.login;
+  const repoOwner = parsed.repository?.owner?.login || parsed.workflow_run?.repository?.owner?.login;
   const orgChannels = repoOwner ? await getOrgChannelsByOrgName(repoOwner) : [];
 
   if (orgChannels.length > 0) {
@@ -135,13 +162,14 @@ export async function webhookHandler(req, res) {
     if (!message) {
       return res.status(200).send("OK");
     }
+    const components = getWorkflowComponents(event, parsed);
     const client = global.discordClient;
     if (client) {
       for (const tc of orgChannels) {
         try {
           const channel = client.channels.cache.get(tc.channel_id);
           if (channel && channel.isTextBased()) {
-            await channel.send(message);
+            await channel.send({ content: message, components });
           }
         } catch (error) {
           console.error("Failed to send webhook message:", error);
@@ -161,6 +189,7 @@ export async function webhookHandler(req, res) {
     return res.status(200).send("OK");
   }
 
+  const components = getWorkflowComponents(event, parsed);
   const standardChannels = await getAllStandardChannels();
   const client = global.discordClient;
   if (client) {
@@ -169,7 +198,7 @@ export async function webhookHandler(req, res) {
       try {
         const channel = client.channels.cache.get(tc.channel_id);
         if (channel && channel.isTextBased()) {
-          await channel.send(message);
+          await channel.send({ content: message, components });
           sentToAny = true;
         }
       } catch (error) {
@@ -182,7 +211,7 @@ export async function webhookHandler(req, res) {
         try {
           const channel = client.channels.cache.get(fallback);
           if (channel && channel.isTextBased()) {
-            await channel.send(message);
+            await channel.send({ content: message, components });
           }
         } catch (error) {
           console.error("Failed to send webhook message to fallback:", error);
