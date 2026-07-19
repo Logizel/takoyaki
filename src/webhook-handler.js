@@ -41,8 +41,8 @@ function formatMessage(discordId, event, payload, orgSender) {
           return `${prefix} opened a PR in a **private repository**.`;
         return `${prefix} opened a PR in **${repoFull}**: *${title}*`;
       }
-      if (action === "closed" || action === "merged") {
-        const verb = action === "merged" ? "merged" : "closed";
+      if (action === "closed") {
+        const verb = payload.pull_request?.merged ? "merged" : "closed";
         if (isPrivate)
           return `${prefix} ${verb} a PR in a **private repository**.`;
         return `${prefix} ${verb} a PR in **${repoFull}**: *${title}*`;
