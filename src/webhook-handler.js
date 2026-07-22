@@ -66,6 +66,7 @@ function formatMessage(discordId, event, payload, orgSender) {
     case "push": {
       const commits = payload.commits || [];
       const count = commits.length;
+      if (count === 0) return null;
       const firstMsg = commits[0]?.message || "No commit message";
       if (isPrivate) {
         return `${prefix} pushed ${count} commit${count !== 1 ? "s" : ""} to a **private repository**.`;
